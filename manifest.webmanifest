@@ -1,6 +1,6 @@
 {
-  "name": "Nine Lives",
-  "short_name": "Nine Lives",
+  "name": "Cat Doku",
+  "short_name": "Cat Doku",
   "description": "A cat-themed logic puzzle. One cat per row, column and colour. No touching.",
   "start_url": "./",
   "scope": "./",

@@ -1,4 +1,4 @@
-# Nine Lives
+# Cat Doku
 
 A cat-themed logic puzzle, as an installable progressive web app. Ported from the
 Godot 4 project in `~/Sites/godot-sudoku`.
