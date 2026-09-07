@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<!-- viewport-fit=cover so the paper background reaches under the notch; the
+     safe-area insets in the stylesheet keep the controls out from under it. -->
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#f7efe3">
+<meta name="description" content="A cat-themed logic puzzle. One cat per row, column and colour. No touching.">
+<meta name="mobile-web-app-capable" content="yes">
+<!-- iOS reads only the prefixed one; Chrome warns without the standard one. -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Nine Lives">
+<title>Nine Lives</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png" sizes="192x192" type="image/png">
+<!-- 180 square is the size iOS wants. Safari caches this one by URL and a home
+     screen icon is baked in when the app is added, so the unix timestamp in the
+     name is the way to hand it a file it has never seen: redraw the art, rename
+     it to `date +%s`, change the two references. -->
+<link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon-180-1788505200.png">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<main id="app">
+
+	<!-- Hidden until the script has read the save and written the button label,
+	     so the menu never appears with a stale one. The boot panel covers the gap. -->
+	<div id="boot-panel" class="overlay solid">
+		<p id="boot-message">Loading…</p>
+		<p id="boot-detail" class="boot-detail" hidden></p>
+	</div>
+
+	<!--
+	  Classic and inline, so it runs even when the module below never does. A
+	  module that fails to parse, fails to import or throws on the way up takes
+	  the boot panel with it, and a screen reading "Loading…" for ever says
+	  nothing about why. Anything thrown before the app clears the panel is
+	  written into it instead.
+
+	  ES5 throughout: whatever syntax the module choked on, this has to survive it.
+	-->
+	<script>
+	(function () {
+		function report(text) {
+			var message = document.getElementById("boot-message");
+			var detail = document.getElementById("boot-detail");
+			// Gone means the app started and cleared the panel; a later error is
+			// the running game's business, not the boot screen's.
+			if (!message || !detail) return;
+			message.textContent = "Could not start";
+			detail.textContent = text;
+			detail.hidden = false;
+		}
+		window.addEventListener("error", function (event) {
+			var target = event.target;
+			if (target && target !== window && (target.src || target.href)) {
+				report("Could not load " + (target.src || target.href));
+				return;
+			}
+			var where = event.filename
+				? " (" + String(event.filename).split("/").pop() + ":" + event.lineno + ")"
+				: "";
+			report((event.message || "Script error") + where);
+		// Capturing, because a stylesheet or module that 404s fires an error that
+		// never reaches window on its own.
+		}, true);
+		window.addEventListener("unhandledrejection", function (event) {
+			var reason = event.reason;
+			report("Unhandled: " + ((reason && (reason.message || reason)) || "rejection"));
+		});
+	})();
+	</script>
+
+	<section id="menu-screen" class="screen menu" hidden>
+		<img class="mascot" src="art/mascot.png" alt="A grinning cat" width="810" height="656">
+		<h1>Nine Lives</h1>
+		<p class="subtitle">One cat per row, column and colour. No touching.</p>
+		<button id="play-button" type="button" class="primary">Play level 1</button>
+		<!-- Shown only when the play button is offering a different level, so the
+		     menu says "carry on" once rather than twice. -->
+		<button id="furthest-button" type="button" hidden>Back to level 1</button>
+		<div id="menu-stats" class="stats"></div>
+	</section>
+
+	<section id="game-screen" class="screen game" hidden>
+
+		<button id="back-button" type="button" class="corner">Menu</button>
+
+		<div class="play-area">
+			<header class="header-row">
+				<span id="tier-label" class="tier">Level 1</span>
+				<span id="time-label" class="time">0:00</span>
+			</header>
+
+			<!-- Lives and score share a row of their own: nine hearts do not fit
+			     beside the level caption on a phone. The best score is the menu's
+			     to show. -->
+			<div class="run-row">
+				<span id="lives" class="lives" role="img" aria-label="9 of 9 lives left"></span>
+				<span id="score-label" class="score">
+					<b id="score-value">0</b>
+				</span>
+			</div>
+
+			<!-- The grid keeps itself square, so the header packs directly above it
+			     and the cat count directly below however tall the screen is.
+			     No role="grid": that needs row and gridcell descendants, and the
+			     cells are direct children with no row wrappers. An invalid role is
+			     worse than none, so the keyboard path and the status live region
+			     carry it instead. -->
+			<div id="board" class="board" aria-label="Puzzle board"></div>
+
+			<p id="progress-label" class="progress">0 / 5 cats</p>
+		</div>
+
+		<!-- Pinned to the bottom edge rather than stacked with the board. Controls
+		     belong where the thumb rests. -->
+		<div class="bottom-bar">
+			<p id="status-label" class="status" role="status" aria-live="polite"></p>
+			<div class="toolbar">
+				<button id="undo-button" type="button">Undo</button>
+				<button id="redo-button" type="button">Redo</button>
+				<button id="clear-button" type="button">Clear</button>
+				<button id="hint-button" type="button">Hint</button>
+			</div>
+		</div>
+
+		<div id="loading-panel" class="overlay solid" hidden>
+			<p id="loading-label">Setting up…</p>
+		</div>
+
+		<div id="result-panel" class="overlay" hidden>
+			<div class="card">
+				<img class="mascot" src="art/mascot.png" alt="" width="810" height="656">
+				<h2 id="result-title">Level done</h2>
+				<p id="result-detail"></p>
+				<!-- The whole bar, spent lives included, so the card says what the
+				     run has left rather than only what this level cost. -->
+				<span id="result-lives" class="lives" role="img"
+					aria-label="9 of 9 lives left"></span>
+				<button id="again-button" type="button" class="primary">Next level</button>
+				<button id="result-menu-button" type="button">Menu</button>
+			</div>
+		</div>
+
+	</section>
+
+</main>
+
+<script type="module" src="js/ui/main.js"></script>
+</body>
+</html>

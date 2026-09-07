@@ -1,0 +1,681 @@
+/*
+ * Widget chrome: buttons, cards, labels, layout.
+ *
+ * This is the half of the colour work a stylesheet can express. The other half --
+ * "this cell belongs to region 4" -- is set per cell from js/ui/palette.js as the
+ * --region custom property, and every cell rule below derives from it.
+ *
+ * Warm paper rather than the usual puzzle-app slate: the board should look like
+ * something a cat would sit on.
+ */
+
+:root {
+	--paper: #f7efe3;
+	--cream: #fff6ea;
+
+	--ink: #4c3b31; /* headings and the selected-cell outline */
+	--ink-soft: #8b7767; /* secondary labels */
+	--ink-faint: #bcb0a2; /* disabled button text */
+
+	--accent: #ef8f5a;
+	--accent-deep: #d4703c;
+	--mint: #74bfa0; /* the hinted cell */
+	--go: #28a745; /* the way on out of a card */
+	--go-deep: #1e7e34;
+
+	--edge: #e2cfb4; /* button and card borders */
+	--edge-hover: #d8bf9d;
+	--disabled: #f2ece2;
+	--disabled-edge: #e8ddcc;
+
+	--mark: #fffaf2; /* the player's own cross */
+	--wrong: #c2504b; /* hearts, and the cross the game proved wrong */
+	--conflict: #d64545;
+
+	--radius-cell: 16%;
+	--radius-control: 12px;
+	--radius-card: 20px;
+
+	/* Board metrics. Both are published by BoardView from one measurement of the
+	   board, so cell corners, outlines and the cat's overhang all follow the same
+	   number rather than each recomputing it. */
+	--cell: 40px;
+	--gap: 5px;
+
+	color-scheme: light;
+}
+
+* {
+	box-sizing: border-box;
+}
+
+html,
+body {
+	/* The dynamic viewport, with the percentage left in for browsers that do not
+	   know dvh: a toolbar that collapses and reappears must not leave the bottom
+	   controls under the fold. */
+	height: 100%;
+	height: 100dvh;
+	margin: 0;
+	/* The app is always one screen, never a document. Nothing scrolls; whatever
+	   cannot fit gives up space instead. */
+	overflow: hidden;
+}
+
+body {
+	background: var(--paper);
+	color: var(--ink);
+	font-family: ui-rounded, "SF Pro Rounded", "Segoe UI Variable Display", system-ui,
+		-apple-system, "Helvetica Neue", sans-serif;
+	font-size: clamp(0.95rem, 3.4vw, 1.1rem);
+	line-height: 1.35;
+	/* No rubber-banding and no double-tap zoom: this is a board you drag across,
+	   not a document you scroll. */
+	overscroll-behavior: none;
+	touch-action: manipulation;
+	-webkit-text-size-adjust: 100%;
+	/* Nothing on screen is text to read and copy, and a hold is a game gesture.
+	   The hold that places the last cat opens the result card under the finger,
+	   and the browser would highlight whatever it lands on. */
+	-webkit-user-select: none;
+	user-select: none;
+	-webkit-touch-callout: none;
+}
+
+#app {
+	position: relative;
+	width: 100%;
+	max-width: 32rem;
+	height: 100%;
+	margin-inline: auto;
+	/* A phone's design width on a desktop screen. Wider than this and the board
+	   grows past any reasonable reach without getting easier to read. */
+}
+
+.screen {
+	position: absolute;
+	inset: 0;
+	display: flex;
+	flex-direction: column;
+	padding: max(0.875rem, env(safe-area-inset-top)) 0.875rem
+		max(0.875rem, env(safe-area-inset-bottom));
+	/* Backstop to the shrinking each screen does for itself. With the document
+	   locked, anything still too tall would hang off the screen unreachable. */
+	overflow: hidden;
+}
+
+.screen[hidden] {
+	display: none;
+}
+
+/* --- Controls ------------------------------------------------------------- */
+
+button {
+	min-height: 3.25rem;
+	padding: 0.5rem 0.875rem;
+	border: 2px solid var(--edge);
+	border-radius: var(--radius-control);
+	background: var(--cream);
+	color: var(--ink);
+	font: inherit;
+	font-weight: 600;
+	cursor: pointer;
+	-webkit-user-select: none;
+	user-select: none;
+	transition: background-color 90ms ease-out, border-color 90ms ease-out;
+}
+
+button.primary {
+	min-height: 3.75rem;
+	font-size: 1.1em;
+}
+
+@media (hover: hover) {
+	button:hover:not(:disabled) {
+		background: #fff0dd;
+		border-color: var(--edge-hover);
+		color: #3b2d25;
+	}
+}
+
+button:active:not(:disabled) {
+	background: var(--accent);
+	border-color: var(--accent-deep);
+	color: var(--cream);
+}
+
+button:focus-visible {
+	outline: none;
+	border-color: var(--accent-deep);
+	box-shadow: 0 0 0 3px rgb(212 112 60 / 25%);
+}
+
+button:disabled {
+	background: var(--disabled);
+	border-color: var(--disabled-edge);
+	color: var(--ink-faint);
+	cursor: default;
+}
+
+/* --- Menu ---------------------------------------------------------------- */
+
+.menu {
+	/* Centred, but not past the top edge: a stack too tall for the screen would
+	   otherwise hang off both ends and take the play button with it. Browsers
+	   without `safe` keep the line above. */
+	justify-content: center;
+	justify-content: safe center;
+	gap: 0.625rem;
+	text-align: center;
+	padding-inline: 1.625rem;
+}
+
+.mascot {
+	display: block;
+	width: 100%;
+	height: auto;
+	max-height: 42vh;
+	object-fit: contain;
+	/* Fits inside its box without distorting: the cat is far wider than it is
+	   tall, so a stretched-to-fill mascot would smear across the screen. */
+	/* Without this an image is never squeezed below its own height. The art is
+	   the one thing on either screen that can afford to give. */
+	min-height: 0;
+	-webkit-user-drag: none;
+	pointer-events: none;
+}
+
+.menu h1 {
+	margin: 0;
+	font-size: clamp(2rem, 9vw, 2.6rem);
+	font-weight: 700;
+	letter-spacing: -0.01em;
+}
+
+.subtitle {
+	margin: 0;
+	color: var(--ink-soft);
+	text-wrap: balance;
+}
+
+.stats {
+	color: var(--ink-soft);
+	margin-top: 0.5rem;
+}
+
+.stats h2 {
+	margin: 0 0 0.25rem;
+	font-size: 1em;
+	font-weight: 700;
+	color: var(--ink);
+}
+
+.stats p {
+	margin: 0.15rem 0;
+}
+
+/*
+ * A landscape phone, or a short desktop window. The mascot has shrunk to nothing
+ * by this height anyway, so it goes, and the title stops taking a tenth of the
+ * screen. Standalone installs are locked to portrait, so this is a browser tab.
+ */
+@media (max-height: 34rem) {
+	/*
+	 * The art has shrunk to nothing by this height anyway. The tag line and the
+	 * heading go with it: the progress lines say what they are. Without this the
+	 * stack runs past the bottom of a landscape phone.
+	 */
+	.menu .mascot,
+	.menu .subtitle,
+	.stats h2,
+	.card .mascot {
+		display: none;
+	}
+
+	.menu {
+		gap: 0.375rem;
+	}
+
+	.menu h1 {
+		font-size: 1.75rem;
+	}
+
+	.stats {
+		margin-top: 0;
+	}
+}
+
+/* --- Game screen --------------------------------------------------------- */
+
+.game {
+	justify-content: center;
+	/* Room for the anchored Menu button, so the centred play area can never ride
+	   up underneath it on a short screen. */
+	padding-top: calc(max(0.875rem, env(safe-area-inset-top)) + 3.5rem);
+}
+
+/* Anchored rather than stacked: a way out belongs at the top of the screen, not
+   travelling up and down with the centred play area. */
+.corner {
+	position: absolute;
+	top: max(0.875rem, env(safe-area-inset-top));
+	left: 0.875rem;
+	min-height: 2.75rem;
+	z-index: 2;
+}
+
+/* alignment centres the whole stack, so the board sits in the middle of the
+   screen with its header packed directly above and the cat count directly
+   below. */
+.play-area {
+	display: flex;
+	flex-direction: column;
+	gap: 0.625rem;
+	margin-block: auto;
+}
+
+.header-row {
+	display: flex;
+	align-items: center;
+	gap: 0.625rem;
+}
+
+.tier {
+	flex: 1;
+	font-weight: 600;
+}
+
+.time {
+	color: var(--ink-soft);
+	font-variant-numeric: tabular-nums;
+}
+
+.run-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.5rem;
+}
+
+.score {
+	display: flex;
+	align-items: baseline;
+	gap: 0.4rem;
+	font-variant-numeric: tabular-nums;
+}
+
+.score b {
+	font-size: 1.05rem;
+	font-weight: 700;
+}
+
+.lives {
+	display: flex;
+	gap: 0.22rem;
+}
+
+/* Nine of these sit in a row on a phone, so they are smaller than a lone icon
+   would want to be. */
+.heart {
+	width: 1.05rem;
+	height: auto;
+	fill: var(--wrong);
+	/* A life coming back fades in rather than snapping on. Losing one fades out
+	   by the same rule. */
+	transition: opacity 420ms ease-out;
+}
+
+/*
+ * Spent lives stay on screen rather than disappearing. A row that shrinks tells
+ * you how many you have; a row that fades tells you how many you have left of
+ * how many, which is the number that matters when you are deciding whether to
+ * risk a guess.
+ */
+.heart.is-spent {
+	opacity: 0.22;
+}
+
+.progress {
+	margin: 0;
+	text-align: center;
+	color: var(--ink-soft);
+	font-variant-numeric: tabular-nums;
+}
+
+/* --- The board ----------------------------------------------------------- */
+
+.board {
+	display: grid;
+	grid-template-columns: repeat(var(--columns, 5), 1fr);
+	grid-template-rows: repeat(var(--columns, 5), 1fr);
+	gap: var(--gap);
+	width: 100%;
+	/*
+	 * A square as wide as the screen, unless the screen is too short for one --
+	 * a landscape window, or a very short one. GameScreen measures what height is
+	 * left after the header, the cat count and the toolbar and publishes it as
+	 * --board-limit; until then the width is the only limit.
+	 *
+	 * The limit caps the width rather than the height because the aspect ratio
+	 * derives the height from it. Capping the height would leave the width alone
+	 * and squash the rows.
+	 */
+	max-width: var(--board-limit, 100%);
+	margin-inline: auto;
+	aspect-ratio: 1;
+	/* The gesture owns the pointer outright. Without this the browser claims a
+	   drag as a scroll and the run stops after one cell. */
+	touch-action: none;
+	-webkit-user-select: none;
+	user-select: none;
+	-webkit-tap-highlight-color: transparent;
+	/* iOS raises a selection callout on a long press, which is exactly the
+	   gesture that places a cat. */
+	-webkit-touch-callout: none;
+}
+
+.cell {
+	position: relative;
+	border-radius: var(--radius-cell);
+	background: var(--region, #ccc);
+	/*
+	 * The fill is the region colour and nothing shifts it. An earlier version
+	 * dimmed the selected cell's row, column and colour, which is standard in a
+	 * Sudoku -- but here colour *is* the region, so two shades of the same blue
+	 * read as two different regions. Selection is an outline instead.
+	 */
+}
+
+/* The keyboard's cursor. A tap does not raise it: see BoardView.showSelection. */
+.board.is-keyboard .cell.is-selected {
+	box-shadow: inset 0 0 0 max(2px, calc(var(--cell) * 0.06)) var(--ink);
+}
+
+.cell.is-hinted {
+	background: color-mix(in srgb, white 25%, var(--region));
+	box-shadow: inset 0 0 0 max(2px, calc(var(--cell) * 0.06)) var(--mint);
+}
+
+.cross {
+	position: absolute;
+	inset: 0;
+	display: none;
+	fill: none;
+	stroke-width: 11; /* of a 100-unit cell, matching the cell's own proportions */
+	stroke-linecap: round;
+}
+
+/*
+ * The same arms drawn wider and underneath, so a cross keeps its shape and gains
+ * an edge rather than a shadow. It is what stops a cream cross dissolving into
+ * the paler regions, and a red one into the rose.
+ */
+.cross .edge {
+	stroke: var(--ink);
+	stroke-width: 15; /* 2 either side of the 11 above */
+}
+
+.cell.is-cross .cross {
+	display: block;
+	stroke: var(--mark);
+}
+
+/* Red, and permanent. The player's own crosses are cream and can be taken back;
+   this one is the game stating a fact. */
+.cell.is-wrong .cross {
+	display: block;
+	stroke: var(--conflict);
+}
+
+/*
+ * Sized to fill the cell's width plus the gap on either side, with the height
+ * following the art's own proportions.
+ *
+ * The cat is wider than it is tall -- whiskers -- so filling the width is what
+ * makes it look like it fills the cell. Filling the height instead would push the
+ * whiskers well past the gap, where the neighbouring cell, painted later, clips
+ * them.
+ */
+.cat {
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	display: none;
+	width: calc(var(--cell) + var(--gap) * 2);
+	height: auto;
+	translate: -50% -50%;
+	pointer-events: none;
+}
+
+.cell.is-cat .cat {
+	display: block;
+}
+
+/*
+ * A cat landing on a cell. It grows, shakes its head twice and settles.
+ *
+ * scale and rotate rather than a transform, because the centring above is a
+ * translate: the three compose, so the animation never has to restate it.
+ */
+@keyframes cat-pounce {
+	0%   { scale: 1;    rotate: 0deg; }
+	25%  { scale: 1.18; rotate: -9deg; }
+	45%  { scale: 1.18; rotate: 8deg; }
+	65%  { scale: 1.14; rotate: -5deg; }
+	85%  { scale: 1.06; rotate: 3deg; }
+	100% { scale: 1;    rotate: 0deg; }
+}
+
+.cell.is-placing .cat {
+	animation: cat-pounce 420ms ease-out;
+}
+
+/* A grown cat reaches further over its edges than the gap allows for, and the
+   cells after it in the grid are painted on top. This lifts it over them for as
+   long as it is moving. */
+.cell.is-placing {
+	z-index: 1;
+}
+
+/* --- Bottom bar ---------------------------------------------------------- */
+
+.bottom-bar {
+	display: flex;
+	flex-direction: column;
+	gap: 0.5rem;
+}
+
+.status {
+	min-height: 2.5em;
+	margin: 0;
+	text-align: center;
+	text-wrap: pretty;
+	color: var(--accent-deep);
+	font-size: 0.85em;
+}
+
+.toolbar {
+	display: grid;
+	grid-template-columns: repeat(4, 1fr);
+	gap: 0.375rem;
+}
+
+.toolbar button {
+	padding-inline: 0.25rem;
+}
+
+/* --- Overlays ------------------------------------------------------------ */
+
+.overlay {
+	position: absolute;
+	inset: 0;
+	z-index: 3;
+	/* Flex rather than grid so the card's max-height has a definite height to
+	   measure against: a grid track sized by its own content cannot answer it. */
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 1.25rem;
+	background: rgb(247 239 227 / 55%);
+}
+
+.overlay[hidden] {
+	display: none;
+}
+
+.overlay.solid {
+	background: rgb(247 239 227 / 94%);
+}
+
+.overlay p {
+	margin: 0;
+}
+
+/* Two lines stacked, not sat side by side: the overlay centres a row by default. */
+#boot-panel {
+	flex-direction: column;
+}
+
+/* The reason the boot panel is still up. Long, and often a file name and a line
+   number, so it wraps anywhere rather than pushing the panel sideways. */
+.boot-detail {
+	max-width: 22rem;
+	margin-top: 0.75rem;
+	color: var(--wrong);
+	font-size: 0.85em;
+	line-height: 1.4;
+	text-align: center;
+	overflow-wrap: anywhere;
+}
+
+.card {
+	display: flex;
+	flex-direction: column;
+	gap: 1.25rem;
+	width: 100%;
+	/* Bounded by the overlay so the buttons cannot end up off-screen, with the
+	   art shrinking to pay for it. */
+	max-height: 100%;
+	padding: 2rem 2.25rem;
+	border: 2px solid var(--edge);
+	border-radius: var(--radius-card);
+	background: var(--cream);
+	text-align: center;
+}
+
+.card .mascot {
+	max-height: 26vh;
+}
+
+/* Bigger than the top bar's, and centred: on the card the bar is the thing being
+   looked at rather than a corner reading. */
+.card .lives {
+	justify-content: center;
+	gap: 0.3rem;
+}
+
+.card .heart {
+	width: 1.4rem;
+}
+
+/*
+ * The beat on a life handed back for a clean board. It arrives with the fade
+ * above, and the pounce is what makes it the thing you look at.
+ */
+@keyframes heart-returns {
+	0%   { scale: 1; }
+	35%  { scale: 1.5; }
+	60%  { scale: 0.95; }
+	100% { scale: 1; }
+}
+
+.heart.is-returning {
+	animation: heart-returns 520ms ease-out;
+}
+
+/*
+ * The heart that flies in for a life earned back. Fixed to the viewport and above
+ * every overlay: it starts at the top of the screen and lands inside the card.
+ *
+ * Its position, size and fade are all driven from script, so the only thing said
+ * here is where it sits in the stack and that it never takes a tap meant for the
+ * button underneath it.
+ */
+.flying-heart {
+	position: fixed;
+	top: 0;
+	left: 0;
+	z-index: 10;
+	transform-origin: 50% 50%;
+	transition: none;
+	pointer-events: none;
+	filter: drop-shadow(0 6px 12px rgb(76 59 49 / 30%));
+}
+
+.card h2 {
+	margin: 0;
+	font-size: clamp(1.75rem, 8vw, 2.4rem);
+	font-weight: 700;
+}
+
+#result-detail {
+	color: var(--ink-soft);
+	white-space: pre-wrap;
+}
+
+/*
+ * The card asks a question with two answers, so its buttons are the same size
+ * and carry the same ink. The fill is what separates them, and it needs its own
+ * hover and press states, because the ones every other button gets would paint
+ * over it.
+ *
+ * Green rather than the accent, which is the colour of a cross and of a cat in
+ * the wrong place -- the wrong note to end a lost level on. Cream on it rather
+ * than ink, which this fill is too dark to carry.
+ */
+.card button.primary {
+	min-height: 3.25rem;
+	border-color: var(--go-deep);
+	background: var(--go);
+	color: var(--cream);
+	font-size: inherit;
+}
+
+@media (hover: hover) {
+	.card button.primary:hover {
+		border-color: var(--go-deep);
+		background: var(--go-deep);
+		color: var(--cream);
+	}
+}
+
+.card button.primary:active {
+	border-color: color-mix(in srgb, black 12%, var(--go-deep));
+	background: color-mix(in srgb, black 12%, var(--go-deep));
+	color: var(--cream);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	button {
+		transition: none;
+	}
+
+	.cell.is-placing .cat {
+		animation: none;
+	}
+
+	/* No animation is no animationend either, so the class stays on the cell.
+	   The lift has to go with the movement that earned it. */
+	.cell.is-placing {
+		z-index: auto;
+	}
+
+	/* The heart still comes back; it just arrives rather than bouncing in. */
+	.heart {
+		transition: none;
+	}
+
+	.heart.is-returning {
+		animation: none;
+	}
+}
